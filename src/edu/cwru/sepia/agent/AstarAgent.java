@@ -9,7 +9,6 @@ import edu.cwru.sepia.util.Direction;
 
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.*;
 public class AstarAgent extends Agent {
 
     class MapLocation
@@ -225,6 +224,33 @@ public class AstarAgent extends Agent {
      */
     private boolean shouldReplanPath(State.StateView state, History.HistoryView history, Stack<MapLocation> currentPath)
     {
+        //no replan required, path is empty
+        if(currentPath.isEmpty()) {
+            return false;
+        }
+
+        Unit.UnitView enemyFootman = state.getUnit(enemyFootmanID);
+
+        // if there was no enemy in the path
+        if (enemyFootman == null ) {
+            return false;
+        }
+
+
+        //MapLocation enemyLocation = new MapLocation (enemyFootman.getXPosition(), enemyFootman.getYPosition(), null, 0);
+        int enemyX = state.getUnit(enemyFootmanID).getXPosition();
+        int enemyY = state.getUnit(enemyFootmanID).getYPosition();
+
+        //checking/iterating the whole path to find the enemy location
+        for(MapLocation presentLocation: currentPath) {
+
+            // presentLocation has enemy, so replan is required
+            if(presentLocation.x == enemyX && presentLocation.y == enemyY ) {
+                System.out.println("enemy found in the path, replaninig");
+                return true;
+            }
+
+        }
         //check if there is an enemy if yes-> return true else return false
         return false;
     }
