@@ -402,6 +402,7 @@ public class AstarAgent extends Agent {
                 }
             }
         }
+
         // No path found
         System.out.println("No available path.");
         System.exit(0);
