@@ -341,10 +341,72 @@ public class AstarAgent extends Agent {
     private Stack<MapLocation> AstarSearch(MapLocation start, MapLocation goal, int xExtent, int yExtent, MapLocation enemyFootmanLoc, Set<MapLocation> resourceLocations)
     {
 
+        PriorityQueue<MapLocation> openSet = new PriorityQueue<>(Comparator.comparingDouble(mapLocation->mapLocation.f));
+        Set<MapLocation> closedSet = new HashSet<>();
 
+        start.cost = 0;
+        start.heuristicCost = calculateChebyshevDistance(start, goal);
+        start.f = start.cost + start.heuristicCost;
+        openSet.add(start);
+
+        while (!openSet.isEmpty()) {
+            MapLocation current = openSet.poll();
+
+            if (current.x==goal.x && current.y==goal.y) {
+                return configurePath(current.cameFrom);
+            }
+
+            closedSet.add(current);
+
+            Stack<MapLocation> neighbors = expandNextAvailableValidSteps(current,goal,xExtent, yExtent, resourceLocations);
+
+            for (MapLocation neighbor : neighbors) {
+                Iterator<MapLocation> closedSetIterator = closedSet.iterator();
+                Iterator<MapLocation> openSetIterator = openSet.iterator();
+                boolean inOpenSet=false;
+                boolean inClosedSet=false;
+
+                while(closedSetIterator.hasNext()){
+                    MapLocation node = closedSetIterator.next();
+
+                    if((node.x == neighbor.x && node.y == neighbor.y)) {
+                        inClosedSet=true;
+                        break;
+                    }
+                }
+
+                if(inClosedSet) {
+                    continue;
+                }
+
+            	if(enemyFootmanLoc!=null) {
+            		if(enemyFootmanLoc.x==current.x && enemyFootmanLoc.y==current.y) {
+            			continue;
+            		}
+            	}
+
+                while(openSetIterator.hasNext()){
+                    MapLocation openNode = openSetIterator.next();
+
+                    if(openNode.x == neighbor.x && openNode.y == neighbor.y && openNode.f >= neighbor.f) {
+
+                        inOpenSet=true;
+                        openSet.remove(openNode);
+                        openSet.add(neighbor);
+                        break;
+                    }
+                }
+
+                if(!inOpenSet) {
+                    openSet.add(neighbor);
+                }
+            }
+        }
         // No path found
+        System.out.println("No available path.");
+        System.exit(0);
+
         return new Stack<MapLocation>();
-        //  return new Stack<MapLocation>();
     }
 
     private Stack<MapLocation> expandNextAvailableValidSteps(MapLocation currentLocation, MapLocation goal,int xExtent, int yExtent, Set<MapLocation> resourceLocations) {
