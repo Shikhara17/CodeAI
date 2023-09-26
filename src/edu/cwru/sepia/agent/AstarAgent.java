@@ -9,11 +9,13 @@ import edu.cwru.sepia.util.Direction;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.*;
+
 public class AstarAgent extends Agent {
 
     class MapLocation
     {
-        public int x, y;
+    	public int x, y;
         public MapLocation cameFrom;
         public float cost;
         public float heuristicCost;
@@ -26,7 +28,6 @@ public class AstarAgent extends Agent {
             this.cost=cost;
         }
     }
-
 
     Stack<MapLocation> path;
     int footmanID, townhallID, enemyFootmanID;
@@ -67,8 +68,6 @@ public class AstarAgent extends Agent {
         int enemyPlayerNum = -1;
         for(Integer playerNum : playerNums)
         {
-
-            ///???
             if(playerNum != playernum) {
                 enemyPlayerNum = playerNum;
                 break;
@@ -131,11 +130,9 @@ public class AstarAgent extends Agent {
 
         if(shouldReplanPath(newstate, statehistory, path)) {
             long planStartTime = System.nanoTime();
-
             path = findPath(newstate);
             planTime = System.nanoTime() - planStartTime;
             totalPlanTime += planTime;
-
         }
 
         Unit.UnitView footmanUnit = newstate.getUnit(footmanID);
@@ -145,7 +142,7 @@ public class AstarAgent extends Agent {
 
         if(!path.empty() && (nextLoc == null || (footmanX == nextLoc.x && footmanY == nextLoc.y))) {
 
-            // start moving to the next step in the path
+            // stat moving to the next step in the path
             nextLoc = path.pop();
 
             System.out.println("Moving to (" + nextLoc.x + ", " + nextLoc.y + ")");
@@ -193,6 +190,12 @@ public class AstarAgent extends Agent {
         System.out.println("Total planning time: " + totalPlanTime/1e9);
         System.out.println("Total execution time: " + totalExecutionTime/1e9);
         System.out.println("Total time: " + (totalExecutionTime + totalPlanTime)/1e9);
+        
+        //for dynamic map manually calling the System.exit() as scenario wont end
+        if(enemyFootmanID!=-1) {
+        	System.out.println("Destroyed the Townhall");
+        	System.exit(0);
+        }
     }
 
     @Override
@@ -211,10 +214,10 @@ public class AstarAgent extends Agent {
      * This method should return true when the path needs to be replanned
      * and false otherwise. This will be necessary on the dynamic map where the
      * footman will move to block your unit.
-     *
+     * 
      * You can check the position of the enemy footman with the following code:
      * state.getUnit(enemyFootmanID).getXPosition() or .getYPosition().
-     *
+     * 
      * There are more examples of getting the positions of objects in SEPIA in the findPath method.
      *
      * @param state
@@ -224,36 +227,31 @@ public class AstarAgent extends Agent {
      */
     private boolean shouldReplanPath(State.StateView state, History.HistoryView history, Stack<MapLocation> currentPath)
     {
-        //no replan required, path is empty
-        if(currentPath.isEmpty()) {
-            return false;
-        }
+    	Unit.UnitView enemyFootman = state.getUnit(enemyFootmanID);
 
-        Unit.UnitView enemyFootman = state.getUnit(enemyFootmanID);
+	   	if (enemyFootman == null ) {
+	   		 
+	   		//if enemy does not exist, returning false
+	   		 return false;
+	   	 }
+	   	
+	   	//checking/iterating the whole path to find if the enemy is blocking the current path 
+	   	for(MapLocation presentLocation: currentPath) {
+	   		
+	   		// getting x & y coordinates of enemy and checking with present location
+	   		if(presentLocation.x == enemyFootman.getXPosition() && presentLocation.y == enemyFootman.getYPosition() ) {
+	   			
+	   			// presentLocation has enemy, so replanning is required 
+	   			System.out.println("Current path has been blocked by enemy, replanning!!!");
+	   			return true;
+	   		}	 
+	
+	   	}
 
-        // if there was no enemy in the path
-        if (enemyFootman == null ) {
-            return false;
-        }
-
-
-        //MapLocation enemyLocation = new MapLocation (enemyFootman.getXPosition(), enemyFootman.getYPosition(), null, 0);
-        int enemyX = state.getUnit(enemyFootmanID).getXPosition();
-        int enemyY = state.getUnit(enemyFootmanID).getYPosition();
-
-        //checking/iterating the whole path to find the enemy location
-        for(MapLocation presentLocation: currentPath) {
-
-            // presentLocation has enemy, so replan is required
-            if(presentLocation.x == enemyX && presentLocation.y == enemyY ) {
-                System.out.println("enemy found in the path, replaninig");
-                return true;
-            }
-
-        }
-        //check if there is an enemy if yes-> return true else return false
-        return false;
+	   	return false;
     }
+    
+    
 
     /**
      * This method is implemented for you. You should look at it to see examples of
@@ -294,7 +292,7 @@ public class AstarAgent extends Agent {
      * will use the A* algorithm to compute the optimum path from the start position to
      * a position adjacent to the goal position.
      *
-     * Therefore your you need to find some possible adjacent steps which are in range
+     * Therefore your you need to find some possible adjacent steps which are in range 
      * and are not trees or the enemy footman.
      * Hint: Set<MapLocation> resourceLocations contains the locations of trees
      *
@@ -338,132 +336,241 @@ public class AstarAgent extends Agent {
      * @param resourceLocations Set of positions occupied by resources
      * @return Stack of positions with top of stack being first move in plan
      */
+
+
     private Stack<MapLocation> AstarSearch(MapLocation start, MapLocation goal, int xExtent, int yExtent, MapLocation enemyFootmanLoc, Set<MapLocation> resourceLocations)
     {
 
-        PriorityQueue<MapLocation> openSet = new PriorityQueue<>(Comparator.comparingDouble(mapLocation->mapLocation.f));
-        Set<MapLocation> closedSet = new HashSet<>();
+        //Comparator for MapLocation objects based on its fvalues
+        Comparator<MapLocation> mapLocationComparator = Comparator.comparingDouble(mapLocation -> mapLocation.f);
 
+        //Initializing a priorityQueue using a mapLocationComparator defined above.
+        PriorityQueue<MapLocation> openSet = new PriorityQueue<>(mapLocationComparator);
+
+        //Initializing a HashSet
+        Set<MapLocation> closedSet = new HashSet<>();
+    	
+        //Calculating the heuristic values for the root node and assigning them to a MapLocation object - start
         start.cost = 0;
         start.heuristicCost = calculateChebyshevDistance(start, goal);
         start.f = start.cost + start.heuristicCost;
+
+        //Adding the starting node to the openSet
         openSet.add(start);
 
+        //Iterating in the openSet until all the nodes have been explored.
         while (!openSet.isEmpty()) {
-            MapLocation current = openSet.poll();
 
-            if (current.x==goal.x && current.y==goal.y) {
-                return configurePath(current.cameFrom);
+            //Retrieve the node with the smallest f value from the openSet.
+            MapLocation currentNode = openSet.poll();
+
+            //Verifying if we have reached the goal node
+            if (currentNode.x==goal.x && currentNode.y==goal.y) {
+
+                //returning the path
+                return configurePath(currentNode.cameFrom);
             }
 
-            closedSet.add(current);
+            //Adding the currentNode to the closedSet as it has been visited
+            closedSet.add(currentNode);
 
-            Stack<MapLocation> neighbors = expandNextAvailableValidSteps(current,goal,xExtent, yExtent, resourceLocations);
+            //Retrieving the available valid neighbor nodes for the currentNode
+            Stack<MapLocation> neighborNodes = expandNextAvailableValidSteps(currentNode,goal,xExtent, yExtent, resourceLocations);
 
-            for (MapLocation neighbor : neighbors) {
-                Iterator<MapLocation> closedSetIterator = closedSet.iterator();
-                Iterator<MapLocation> openSetIterator = openSet.iterator();
-                boolean inOpenSet=false;
-                boolean inClosedSet=false;
+            //Iterating through the available neighborNodes
+            for (MapLocation neighborNode : neighborNodes) {
 
-                while(closedSetIterator.hasNext()){
-                    MapLocation node = closedSetIterator.next();
+                //Initialized Iterators for closedSet and openSet
+            	Iterator<MapLocation> closedSetIterator = closedSet.iterator();
+            	Iterator<MapLocation> openSetIterator = openSet.iterator();
+                
+            	boolean inOpenSet=false;
+            	boolean inClosedSet=false;
+            	
+            	while (closedSetIterator.hasNext()){
+    	            MapLocation closedSetNode = closedSetIterator.next();
 
-                    if((node.x == neighbor.x && node.y == neighbor.y)) {
-                        inClosedSet=true;
-                        break;
-                    }
-                }
-
-                if(inClosedSet) {
-                    continue;
-                }
-
-            	if(enemyFootmanLoc!=null) {
-            		if(enemyFootmanLoc.x==current.x && enemyFootmanLoc.y==current.y) {
-            			continue;
-            		}
+    	            //Checking if the closedSet contains the current neighborNode
+    	            if((closedSetNode.x == neighborNode.x && closedSetNode.y == neighborNode.y)) {
+    	            	inClosedSet=true;
+    	            	break;
+    	            }         
             	}
 
-                while(openSetIterator.hasNext()){
-                    MapLocation openNode = openSetIterator.next();
+            	//Skipping this neighbor node if it already exists in the closedSet
+            	if (inClosedSet) {
+            		continue;
+            	}
 
-                    if(openNode.x == neighbor.x && openNode.y == neighbor.y && openNode.f >= neighbor.f) {
+                //Checking if the current neighbor node position is occupied by a footman
+            	if (enemyFootmanLoc!=null) {
+            		
+            		if (enemyFootmanLoc.x==neighborNode.x && enemyFootmanLoc.y==neighborNode.y) {
+            			continue;
+            		}
+            	}          	
+            	
+            	while (openSetIterator.hasNext()){
+    	            MapLocation openSetNode = openSetIterator.next();
 
-                        inOpenSet=true;
-                        openSet.remove(openNode);
-                        openSet.add(neighbor);
-                        break;
-                    }
-                }
+    	            //Checking if the openSet contains the current neighbor node and comparing the costs between the neighborNode and the
+                    //node existing in the openSet
+    	            if (openSetNode.x == neighborNode.x && openSetNode.y == neighborNode.y && openSetNode.cost >= neighborNode.cost) {
+    	            	inOpenSet=true;
 
-                if(!inOpenSet) {
-                    openSet.add(neighbor);
-                }
+    	            	//removing from the openSet
+    	            	openSet.remove(openSetNode);
+
+    	            	//Adding the new neighbor node as it has the lesser cost/fvalue
+    	            	openSet.add(neighborNode);
+    	            	break;
+    	            }
+    	        }
+
+                //Adding this neighbor node if it doesn't exist in the openSet
+            	if (!inOpenSet) {
+            		openSet.add(neighborNode);
+            	} 
+
             }
         }
+        
 
-        // No path found
+        // Invoking System.ext() if no path can be found.(As per problem statement)
         System.out.println("No available path.");
         System.exit(0);
 
         return new Stack<MapLocation>();
     }
 
+    
+    
+    
+    /**
+     * This method would expand all the neighbors of the current location passed in 
+     * arguments and filters out only neighbors that are valid 
+     * 
+     * i.e It expands all the possible neighbors and checks if any of the neighboring position 
+     * is occupied by a resource(tree). If its occupied by a tree then we ignore that node and return 
+     * other valid neighbors.
+     *
+     * 
+     *
+     * @param currentLocation Current position of the footman
+     * @param goal MapLocation of the townhall.
+     * @param xExtent Width of the map
+     * @param yExtent Height of the map
+     * @param resourceLocations Set of positions occupied by resources
+     * @return Stack of MapLocation Objects which includes valid neighbors 
+     */ 
     private Stack<MapLocation> expandNextAvailableValidSteps(MapLocation currentLocation, MapLocation goal,int xExtent, int yExtent, Set<MapLocation> resourceLocations) {
+    	  
+    	//Initializing Stack<MapLocations> to store and return valid neighbors
+    	Stack<MapLocation> nextPossibleSteps = new Stack<MapLocation>();	
+    	
+    	//A 2d array which corresponds to all the moves that are possible in any location.
+    	int[][] directions = {
 
-        Stack<MapLocation> nextPossibleSteps = new Stack<MapLocation>();
-        int[][] directions = {
+		        {-1, 0}, {1, 0}, {0, -1}, {0, 1},   //Moving up,down,left,right
 
-                {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+		        {-1, -1}, {-1, 1}, {1, -1}, {1, 1}  //Moving diagonally
 
-                {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
-
-        };
-        for(int[] direction:directions) {
-            int nextX = currentLocation.x + direction[0];
-            int nextY = currentLocation.y + direction[1];
-            if(nextX >= 0 && nextX < xExtent && nextY >= 0 && nextY < yExtent) {
-                float actualCostForNextStep = currentLocation.cost + 1;
-                MapLocation nextPossibleStep = new MapLocation(nextX, nextY, currentLocation, actualCostForNextStep);
-                boolean isNextStepBlockedByTree = false;
-                Iterator<MapLocation> setIterator = resourceLocations.iterator();
-
-                while(setIterator.hasNext()){
-                    MapLocation tree = setIterator.next();
-                    if(tree.x == nextPossibleStep.x && tree.y == nextPossibleStep.y) {
-                        isNextStepBlockedByTree=true;
-                        break;
-                    }
-                }
-
-                if(!isNextStepBlockedByTree) {
-                    nextPossibleStep.heuristicCost = calculateChebyshevDistance(nextPossibleStep,goal);
-                    nextPossibleStep.f = nextPossibleStep.cost + nextPossibleStep.heuristicCost;
-                    nextPossibleSteps.add(nextPossibleStep);
-                }
-            }
-
-        }
-
-        return nextPossibleSteps;
+		    };   	
+    	
+    	//Loop through each direction, to create corresponding neighbor Nodes 
+    	for (int[] direction:directions) {    		
+    		
+    		//Represents the x,y coordinates of the next step.
+    		int nextX = currentLocation.x + direction[0];
+    		int nextY = currentLocation.y + direction[1];
+    		
+    		//Checking whether the nextPossible location falls within the boundary of the given map
+    		if (nextX >= 0 && nextX < xExtent && nextY >= 0 && nextY < yExtent) {   			
+    			
+    			//Populates the actual cost for the next step by adding 1 to actual path cost of its parent i.e currentLocation
+    			float actualCostForNextStep = currentLocation.cost + 1;
+    			MapLocation nextPossibleStep = new MapLocation(nextX, nextY, currentLocation, actualCostForNextStep);
+    			
+    			//Defined a boolean to store information on whether the next step is blocked by tree or not 
+    			boolean isNextStepBlockedByTree = false;
+    			
+    			//Initialized iterator for iterating through all resourceLocations
+    			Iterator<MapLocation> setIterator = resourceLocations.iterator();
+    			
+    			//Iterating through resourceLocations to check if nextPossibleStep is occupied by tree.
+    	        while (setIterator.hasNext()){
+    	            
+    	        	MapLocation tree = setIterator.next();   	            
+    	            
+    	        	//If there exists a tree such that its coordinates are equal to nextPossibleStep's coordinates then we set 'isNextStepBlockedByTree' to true 	
+    	        	if (tree.x == nextPossibleStep.x && tree.y == nextPossibleStep.y) {
+    	            	isNextStepBlockedByTree=true;
+    	            	break;
+    	            }
+    	        }
+    			
+    	        //If the current neighbor is a valid neighbor we calculate its heuristic and add it to list of valid neighbors.
+    	        if (!isNextStepBlockedByTree) {
+    	        	
+    	        	//Calculate the heuristic value of corresponding neighbor node
+    	        	nextPossibleStep.heuristicCost = calculateChebyshevDistance(nextPossibleStep,goal);
+    	        	
+    	        	//As we know total cost = actual cost + heuristic
+    	        	nextPossibleStep.f = nextPossibleStep.cost + nextPossibleStep.heuristicCost;
+    	        	nextPossibleSteps.add(nextPossibleStep);
+    	        }			
+    		}
+    		
+    	}
+    	
+    	// Returning all the possible valid(within boundary, Not occupied by tree) neighbors.
+    	return nextPossibleSteps;
     }
-
-    private float calculateChebyshevDistance(MapLocation current, MapLocation goal) {
-
-        return Math.max(Math.abs(goal.x - current.x), Math.abs(goal.y - current.y));
-    }
-
+    
+    /**
+     * This method would extract/backtrack the path from a given destination node and returns Stack of 
+     * positions that needs to be followed in order to move from initial node to destination node. 
+     * 
+     * 
+     * @param destination MapLocation of the townhall.
+     * @return Stack of positions with top of stack being first move in plan
+     */ 
     private Stack<MapLocation> configurePath(MapLocation destination){
-
-        Stack<MapLocation> path = new Stack<MapLocation>();
-        while(destination != null) {
-            path.add(destination);
-            destination=destination.cameFrom;
-        }
-        path.pop();
-        return path;
+    	
+    	//Initialize a new Stack<MapLocation> to track path.
+    	Stack<MapLocation> path = new Stack<MapLocation>();
+    	
+    	//Iterate through all the corresponding parent nodes and adding them to path until we reach initial state
+    	while (destination != null) {
+    		
+    		path.add(destination);
+    		
+    		//replacing current object with its parent.
+    		destination=destination.cameFrom;
+    	}  	
+    	//Remove current/initial position of footman from stack
+    	path.pop();
+    	
+    	//Return stack of positions where first position is the next location that agent can move to
+    	return path;
     }
+    
+    
+    /**
+     * This function calculates the chebyshev distance between two points
+     * by returning the maximum value among the absolute difference between x and y coordinates of 2 locations
+     *  
+     * @param current - Map Location Object that represents current node
+     * @param goal - Map Location Object that represents Goal/Townhall 
+     * @return - Chebyshev distance between current and goal which acts as a heuristic value 
+     */
+    
+    private float calculateChebyshevDistance(MapLocation currentNode, MapLocation goal) {
+    	
+    	// Calculating chebyshev distance between currentNode and goal.
+    	return Math.max(Math.abs(goal.x - currentNode.x), Math.abs(goal.y - currentNode.y));
+    }
+
     /**
      * Primitive actions take a direction (e.g. Direction.NORTH, Direction.NORTHEAST, etc)
      * This converts the difference between the current position and the
